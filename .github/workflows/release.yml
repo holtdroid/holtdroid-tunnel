@@ -1,0 +1,71 @@
+name: release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - id: version
+        uses: mathieudutour/github-tag-action@v7
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          default_bump: false
+          dry_run: true
+          release_branches: main
+      - if: steps.version.outputs.new_tag
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+      - if: steps.version.outputs.new_tag
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: engine/go.mod
+          cache-dependency-path: engine/go.sum
+      - if: steps.version.outputs.new_tag
+        uses: android-actions/setup-android@v4
+      - if: steps.version.outputs.new_tag
+        run: sdkmanager --install "ndk;$(sed -n 's/^ndkVersion=//p' gradle.properties)"
+      - if: steps.version.outputs.new_tag
+        uses: gradle/actions/setup-gradle@v6
+      - if: steps.version.outputs.new_tag
+        name: Build the APK
+        env:
+          VERSION: ${{ steps.version.outputs.new_version }}
+          SIGNING_KEYSTORE_BASE64: ${{ secrets.SIGNING_KEYSTORE_BASE64 }}
+          SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+          SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+        run: |
+          if [ -n "$SIGNING_KEYSTORE_BASE64" ]; then
+            export SIGNING_KEYSTORE="$RUNNER_TEMP/release.jks"
+            echo "$SIGNING_KEYSTORE_BASE64" | base64 -d > "$SIGNING_KEYSTORE"
+          else
+            echo "::warning::SIGNING_KEYSTORE_BASE64 is not set, the APK is signed with the debug key"
+          fi
+          mkdir -p dist
+          ./gradlew --console=plain testDebugUnitTest assembleRelease -PappVersion="$VERSION"
+          cp app/build/outputs/apk/release/app-release.apk "dist/holtdroid-tunnel-$VERSION.apk"
+          (cd dist && sha256sum *.apk > SHA256SUMS)
+      - if: steps.version.outputs.new_tag
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ steps.version.outputs.new_tag }}
+          name: ${{ steps.version.outputs.new_tag }}
+          body: ${{ steps.version.outputs.changelog }}
+          target_commitish: ${{ github.sha }}
+          files: dist/*
