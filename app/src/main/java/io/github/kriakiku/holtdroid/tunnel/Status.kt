@@ -32,6 +32,7 @@ data class Status(
     val traffic: Traffic? = null,
     val proxy: String? = null,
     val consent: Boolean? = null,
+    val owner: String? = null,
 ) {
     fun toJson(): String = Json.obj(
         "state" to state,
@@ -42,6 +43,7 @@ data class Status(
         "proxy" to proxy,
         "config" to config?.let { Json.Raw(it.toJson()) },
         "traffic" to traffic?.let { Json.Raw(it.toJson()) },
+        "owner" to owner?.let { Json.Raw(it) },
     )
 
     companion object {

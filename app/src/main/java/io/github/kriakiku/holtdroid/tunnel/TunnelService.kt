@@ -31,6 +31,7 @@ class TunnelService : VpnService() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == Control.ACTION_STOP) {
+            Store.setWanted(this, false)
             worker.execute {
                 shutdown(null)
                 stopForeground(STOP_FOREGROUND_REMOVE)
@@ -46,6 +47,13 @@ class TunnelService : VpnService() {
             return START_NOT_STICKY
         }
         promote(config)
+        if (intent?.action != Control.ACTION_START && !Store.wanted(this)) {
+            Log.i(Tunnel.TAG, "system start ignored: the tunnel was stopped with STOP")
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+            return START_NOT_STICKY
+        }
+        Store.setWanted(this, true)
         Store.save(this, config)
         worker.execute { launch(config) }
         return START_STICKY

@@ -10,7 +10,9 @@ contract and `docs/decisions.md` for why things are the way they are.
   stack reads the tun fd; TCP goes out as SOCKS5 CONNECT, UDP as sing UoT v2 over SOCKS5.
 - `app/`: the Kotlin app. `Control` and `TunnelConfig` hold the contract and have no Android
   dependencies so the JVM unit tests cover them; `TunnelService`, `ControlReceiver` and
-  `ConsentActivity` are the Android glue.
+  `ConsentActivity` are the Android glue. The device owner part follows the same split:
+  `OwnerConfig` and `OwnerControl` are pure, `Owner`, `AdminReceiver` and `Wallpaper` touch
+  Android.
 
 ## Checks
 
@@ -34,4 +36,7 @@ The toolchain is pinned in `mise.toml` (JDK and Go); the NDK version is `ndkVers
 - The control contract in `README.md` is consumed by the Holtdroid agent in Go. Changing an
   action, extra, result code or JSON field is a breaking change: update the README and the
   tests in the same commit.
-- No root, and never touch other apps beyond including or excluding them from the VPN.
+- No root. Other apps are only touched through VPN include/exclude and documented device owner
+  policies (hide, lock task allowlist).
+- Never hide, deny or otherwise block the dialer, phone, telecom, in-call or emergency packages,
+  and never add `no_debugging_features`.

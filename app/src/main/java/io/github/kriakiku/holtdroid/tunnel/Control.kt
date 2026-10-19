@@ -1,6 +1,6 @@
 package io.github.kriakiku.holtdroid.tunnel
 
-class Control(private val platform: Platform, private val timeoutMs: Long = 8000) {
+class Control(private val platform: Platform, private val timeoutMs: Long = 8000, private val owner: OwnerControl? = null) {
     interface Platform {
         val packageName: String
         fun hasConsent(): Boolean
@@ -8,6 +8,7 @@ class Control(private val platform: Platform, private val timeoutMs: Long = 8000
         fun stop()
         fun lastConfig(): TunnelConfig?
         fun probe(config: TunnelConfig): String
+        fun ownerJson(): String? = null
     }
 
     data class Reply(val code: Int, val json: String)
@@ -16,7 +17,7 @@ class Control(private val platform: Platform, private val timeoutMs: Long = 8000
         ACTION_START -> start(extras)
         ACTION_STOP -> stop()
         ACTION_STATUS -> status()
-        else -> Reply(RESULT_ERROR, Status(error = "unknown action: $action").toJson())
+        else -> owner?.handle(action, extras) ?: Reply(RESULT_ERROR, Status(error = "unknown action: $action").toJson())
     }
 
     private fun start(extras: Map<String, Any?>): Reply {
@@ -53,7 +54,7 @@ class Control(private val platform: Platform, private val timeoutMs: Long = 8000
         val current = Tunnel.snapshot()
         val config = current.config ?: platform.lastConfig()
         val reply = config?.let { current.withProxy(it) } ?: current.copy(consent = platform.hasConsent())
-        return Reply(RESULT_OK, reply.toJson())
+        return Reply(RESULT_OK, reply.copy(owner = platform.ownerJson()).toJson())
     }
 
     private fun Status.withProxy(config: TunnelConfig) = copy(consent = platform.hasConsent(), proxy = platform.probe(config))

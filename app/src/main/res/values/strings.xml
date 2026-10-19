@@ -3,5 +3,6 @@
     <string name="app_name">Holtdroid Tunnel</string>
     <string name="channel_name">Tunnel</string>
     <string name="notification_text">Routing traffic to %1$s:%2$d</string>
+    <string name="admin_description">Locks a shared test phone down for Holtdroid sessions.</string>
     <string name="hint">Controlled over adb, see the README.</string>
 </resources>

@@ -175,7 +175,192 @@ adb shell am start -n io.github.kriakiku.holtdroid.tunnel/.ConsentActivity --ei 
 ```
 
 Only one VPN can run per user, so starting the tunnel revokes any other VPN app and vice versa.
-The tunnel declares always-on support, so a device-owner app can pin it with lockdown.
+When the app is the device owner it pins itself as the always-on VPN, which also grants the
+consent (see [Device owner](#device-owner)).
+
+## Device owner
+
+The same app can be the phone's device owner (DPC) and lock a shared test phone down: no
+accounts, no factory reset, no new users, no outgoing calls or SMS, no VPN or private DNS
+changes, no traffic outside the tunnel, system updates postponed, and a lock-task "soft kiosk"
+per session. It never turns adb off.
+
+### Provisioning
+
+Device owner can only be set while the phone has no accounts and a single user:
+
+```sh
+adb shell dpm set-device-owner io.github.kriakiku.holtdroid.tunnel/.AdminReceiver
+```
+
+On success the app applies the default [LOCKDOWN](#lockdown) at once and re-applies the saved
+one on every boot. `STATUS` reports it under `owner`.
+
+Read this before provisioning a phone you care about:
+
+- **Signing key.** A device owner can only be updated by an APK signed with the same key, and
+  only `RELEASE` (or a factory reset) removes it. Provision with the release-signed APK, never
+  with a debug build or a release built without the `SIGNING_*` secrets, or the phone is tied to
+  the debug key.
+- **Never install a build without `AdminReceiver` over it** (v0.1.x). Android then drops the
+  active admin while keeping the owner record: every policy call fails and only `RELEASE` gets
+  the phone out. `adb install -r -d` must not downgrade below the version that provisioned it.
+- The device owner cannot be uninstalled (`DELETE_FAILED_DEVICE_POLICY_MANAGER`) or cleared with
+  `pm clear`; keep it out of any cleanup lists anyway.
+- Block the microphone and camera **before** provisioning (`cmd sensor_privacy enable 0 microphone`,
+  `... camera`): the toggle restrictions freeze the toggles in whatever state they are in, for
+  the adb shell too.
+
+### Actions
+
+All actions go to the same receiver as the tunnel's and follow the same rules: `-n` component,
+`DUMP` permission, a synchronous result and JSON data.
+
+| Action | Needs owner | Extras | Does |
+|---|---|---|---|
+| `LOCKDOWN` | yes | see below | applies the restrictions and policies, replacing the previous lockdown |
+| `RELEASE` | yes | none | clears every restriction and policy, unhides packages, ends lock task, removes the always-on VPN, then gives up device owner |
+| `CLEAR_PASSWORD` | yes | none | removes a lock screen PIN, pattern or password someone set, and disables the keyguard again |
+| `SESSION_START` | yes | see below | starts lock task with the session app in front |
+| `SESSION_END` | yes | none | ends lock task |
+| `WALLPAPER` | no | `rows` or `rows_b64` | draws the Holtdroid wallpaper on the home and lock screens |
+
+Result codes: `-1` done, `1` failed (see `error`), `3` the app is not the device owner. The data
+is:
+
+```json
+{ "error": null, "notes": ["..."], "owner": { ... } }
+```
+
+`notes` carries things that worked partly: a keyguard that stays on because a password is set,
+a reset password token that waits for the next unlock, `RELEASE` steps that failed. `owner` is
+the same object `STATUS` returns.
+
+### LOCKDOWN
+
+| Extra | Default | Meaning |
+|---|---|---|
+| `restrictions` | all in the table below | the user restrictions to apply, replacing the default set |
+| `skip` | | restrictions to leave out of the default set; cannot be combined with `restrictions` |
+| `hide` | updaters and messaging apps | packages to hide with `setApplicationHidden`; packages hidden by an earlier lockdown and not listed are unhidden |
+| `vpn` | `lockdown` | `lockdown`: the tunnel is the always-on VPN and nothing leaves outside it; `on`: always-on without lockdown; `off`: not always-on |
+| `updates` | `postpone` | `postpone`: OTA installs are postponed (30 days per update, as Android allows); `none`: no policy |
+| `camera` | `true` | disable every camera with `setCameraDisabled` |
+| `keyguard` | `true` | disable the keyguard (no lock screen) |
+
+Default restrictions (`UserManager` keys; ones newer than the device are skipped):
+
+| Key | Agent commands checked against it (Android 16 emulator) |
+|---|---|
+| `no_modify_accounts`, `no_factory_reset`, `no_safe_boot`, `no_network_reset`, `no_add_user`, `no_remove_user`, `no_add_managed_profile` | none affected |
+| `no_outgoing_calls`, `no_sms` | none affected; emergency calls still go through |
+| `no_config_wifi` | `svc wifi`, `cmd wifi set-wifi-enabled`, `cmd wifi list-networks`, `cmd wifi forget-network` work |
+| `no_config_mobile_networks` | `svc data enable/disable` works |
+| `no_bluetooth`, `no_config_bluetooth` | Bluetooth is forced off; `cmd bluetooth_manager disable` prints `Failed with status=-1` and changes nothing |
+| `no_config_tethering`, `no_usb_file_transfer`, `no_physical_media` | adb is unaffected |
+| `no_config_vpn` | the tunnel's START/STOP work |
+| `disallow_config_private_dns` | `settings put global private_dns_mode` is silently ignored |
+| `no_install_unknown_sources_globally` | `adb install -r -d -g`, `cmd package install-existing` work |
+| `disallow_microphone_toggle`, `disallow_camera_toggle` | `cmd sensor_privacy enable/disable` is refused (the toggle is frozen); apply after blocking the sensors |
+
+Also checked and unaffected: `pm clear`, `pm suspend/unsuspend`, `cmd locale set-app-locales`,
+`cmd alarm set-time`, `settings put global http_proxy`, `cmd connectivity airplane-mode`,
+`cmd location set-location-enabled`, `wm dismiss-keyguard`, `locksettings set-disabled`.
+`setCameraDisabled` shows up as `no_camera` in the restrictions list.
+
+`no_debugging_features` is refused because it turns adb off. To change the sensor toggles later,
+run `LOCKDOWN --es skip disallow_microphone_toggle,disallow_camera_toggle`, change them, then
+`LOCKDOWN` again.
+
+### SESSION_START
+
+| Extra | Default | Meaning |
+|---|---|---|
+| `package` | required | the app under test; it is launched in lock task |
+| `allow` | | more packages to allow |
+| `deny` | | launcher apps to keep out |
+| `features` | `system_info,notifications,home,overview,global_actions` | lock task features; `none` for none, `overview` needs `home` |
+
+The allowlist is every launcher-visible app, minus a denylist (Settings, contacts, Play Store,
+Galaxy Store, Samsung account, Google Play services, Smart Switch, the cameras, the updaters and
+messaging apps), plus `allow`, minus `deny`, plus the session app, the default home app and this
+app. The phone, telecom, dialer, in-call, emergency and permission-controller packages are always
+allowed when installed and cannot be denied or hidden: they carry emergency calls and runtime
+permission prompts.
+
+In lock task, starting an activity of a package outside the allowlist fails (`am start` returns
+error 101), including from the agent. Home goes to the launcher, apps on the allowlist start from
+it, Recents switches between them. That was verified with the Pixel launcher on the emulator;
+One UI's launcher is not verified yet.
+
+`global_actions` (the power menu) is on by default because One UI's power menu has the Emergency
+call entry. Pass `features` without it to remove the power menu.
+
+### Emergency calls
+
+Device policy cannot block emergency calls: `no_outgoing_calls` still lets the dialer call
+emergency numbers. This app does not try to work around that either. It never hides or denies the dialer, phone, in-call or emergency
+packages. Holtdroid's own cleanup suspends `com.android.emergency`,
+`com.sec.android.emergencylauncher` and `com.samsung.android.emergency` with `pm suspend`; that
+disables Samsung's SOS features and is not something the device owner does. Consider taking
+them off that list.
+
+### STOP under lockdown
+
+With `vpn=lockdown` (the default) Android blocks every app's traffic while the tunnel is down.
+`STOP` still stops the tunnel, so the phone is offline (connections fail with "Permission
+denied") until the next `START`. A `STOP` is remembered: when the system restarts the always-on
+VPN (process death, reboot) the tunnel stays down until `START`. `vpn=off` restores the old
+behaviour, where `STOP` hands the phone back to its own networks.
+
+### Password
+
+`LOCKDOWN` registers a reset password token. If a PIN exists at that moment, the token only
+becomes active after the phone is unlocked once with it (`password_token_active` in `STATUS`).
+`CLEAR_PASSWORD` then removes any PIN, pattern or password without knowing it, and turns the
+keyguard off again.
+
+### WALLPAPER
+
+The same drawing as Holtdroid's emulator wallpaper: the logo on the home screen, the logo and the
+rows on the lock screen, with `android`, `abi` and `display` rows appended. `rows` takes a JSON
+array of `[label, value]` pairs or Holtdroid's `{"rows": [...]}` (`agent.Wallpaper` as
+marshalled). Shell quoting of JSON is fragile, so `rows_b64` takes the same JSON base64-encoded
+(standard alphabet):
+
+```sh
+adb shell am broadcast -n $P/.ControlReceiver -a $P.WALLPAPER --es rows_b64 eyJyb3dzIjpbWyJzZXNzaW9uIiwiczEiXV19
+```
+
+It does not need device owner.
+
+### Owner status
+
+`STATUS` gains an `owner` object (`{"device_owner": false, "lock_task": "none"}` when the app is not
+the owner):
+
+```json
+{
+  "device_owner": true,
+  "restrictions": ["disallow_camera_toggle", "no_camera", "no_config_vpn", "..."],
+  "hidden": ["com.google.android.apps.messaging"],
+  "camera_disabled": true,
+  "keyguard_disabled": true,
+  "password_set": false,
+  "password_token_active": true,
+  "always_on_vpn": "io.github.kriakiku.holtdroid.tunnel",
+  "vpn_lockdown": true,
+  "system_update_policy": "postpone",
+  "lock_task": "locked",
+  "session": "com.example.app",
+  "lock_task_packages": ["com.example.app", "..."],
+  "lock_task_features": ["system_info", "notifications", "home", "overview", "global_actions"]
+}
+```
+
+`hidden` lists only packages this app hid and that are present. `lock_task` is `none`, `locked`
+or `pinned`, and is read when the reply is built, so right after `SESSION_START` it can still say
+`none`.
 
 ## Host side
 

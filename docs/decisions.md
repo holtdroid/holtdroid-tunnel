@@ -84,3 +84,42 @@ stream. A client that sends its request and then calls `shutdown(SHUT_WR)` (netc
 HTTP/1.0 clients) would lose the response if the engine passed the half-close on, as sing's
 `CopyConn` does. The engine's `relay` keeps the upstream open after the client half-closes,
 reads the response until the server closes, and gives up after 2 minutes without data.
+
+## 9. The device owner lives in the tunnel app
+
+Holtdroid needs both on every shared phone, and always-on VPN with lockdown is a device-owner
+policy anyway, so one APK holds the tunnel and the DPC. Every owner action goes through the same
+`DUMP`-guarded receiver and result conventions. `OwnerConfig` and `OwnerControl` hold the contract
+without Android dependencies, so the JVM tests cover parsing and the lock task allowlist;
+`Owner` is the `DevicePolicyManager` glue.
+
+## 10. Restrictions are checked against the agent's own commands
+
+Every default restriction was applied on the Android 16 emulator and the agent's on-device
+commands were run under it (README, Device owner). None of them breaks the agent. Two change its
+results: `no_bluetooth` makes `cmd bluetooth_manager disable` report a failure (Bluetooth is
+already forced off), and the sensor toggle restrictions freeze `cmd sensor_privacy`, so the
+sensors have to be blocked first. `no_debugging_features` is refused outright.
+
+## 11. Emergency calls stay reachable
+
+The dialer, phone, telecom, in-call, emergency and permission-controller packages are never
+hidden, never denied from lock task, and cannot be added to `hide` or `deny`. The power menu
+stays available in lock task by default because One UI puts the Emergency call entry there.
+Outgoing calls and SMS are restricted with `no_outgoing_calls` and `no_sms`, which Android
+implements with an emergency exception.
+
+## 12. STOP under lockdown fails closed
+
+With lockdown, Android drops all traffic while the VPN is down, so `STOP` makes the phone
+offline instead of handing it back to Wi-Fi or mobile data. The tunnel remembers a `STOP` and
+ignores the system's always-on restarts until the next `START`, so a reset is not undone by a
+reboot or process death.
+
+## 13. No adb watchdog
+
+Putting `adb_enabled` and `development_settings_enabled` back after someone on the phone turns
+them off is left out for now, pending the maintainer's decision. Android 11 deprecated
+`setGlobalSetting(ADB_ENABLED)` for device owners (not re-checked here); the remaining route
+would be `WRITE_SECURE_SETTINGS` granted over adb. Lock task and Holtdroid's suspension of Settings already keep the developer options out
+of reach during and between sessions.

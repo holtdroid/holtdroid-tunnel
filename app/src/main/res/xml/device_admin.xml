@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<device-admin>
+    <uses-policies>
+        <limit-password />
+        <reset-password />
+        <force-lock />
+        <disable-camera />
+        <disable-keyguard-features />
+    </uses-policies>
+</device-admin>
