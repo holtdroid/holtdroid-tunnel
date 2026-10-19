@@ -415,6 +415,15 @@ nothing. The workflow builds the APK, signs it with the release key when the
 `SIGNING_KEYSTORE_BASE64` secret is set (the debug key otherwise), tags `vX.Y.Z` and publishes a
 GitHub release with the APK and `SHA256SUMS`.
 
+Releases from v0.2.1 on are signed with the release key; v0.2.0 and earlier carry the debug key.
+The release certificate's SHA-256 is
+`FB:A4:C1:7B:E5:36:97:99:D8:D2:CC:C2:0F:CD:F6:07:96:CE:4E:96:55:3F:33:2A:E6:D9:78:C7:95:D6:3C:80`;
+check an APK before provisioning a phone with it:
+
+```sh
+apksigner verify --print-certs holtdroid-tunnel-0.2.1.apk | grep SHA-256
+```
+
 [Renovate](https://docs.renovatebot.com) keeps dependencies fresh (`renovate.json`). Gradle and
 Go updates land as `fix(deps)` commits and ship as patch releases. The `sagernet` Go modules
 move as one group and wait for review.
