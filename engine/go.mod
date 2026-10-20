@@ -1,4 +1,4 @@
-module github.com/kriakiku/holtdroid-tunnel/engine
+module github.com/holtdroid/holtdroid-tunnel/engine
 
 go 1.27
 

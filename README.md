@@ -3,7 +3,7 @@
 <p align="center">Sends all of an Android phone's traffic over USB to the host, no root needed.</p>
 
 Holtdroid Tunnel is the network path for real phones in
-[Holtdroid](https://github.com/kriakiku/holtdroid), the self-hosted portal for Android test
+[Holtdroid](https://github.com/holtdroid/holtdroid), the self-hosted portal for Android test
 devices. It is a VpnService that captures every app's IPv4 and IPv6 traffic and hands it to a
 SOCKS5 proxy on the phone's `127.0.0.1`, which `adb reverse` maps to a sing-box on the host. The
 phone needs no Wi-Fi and no mobile data: internet and ADB share the USB cable, and the host
@@ -27,7 +27,7 @@ Apps can tell a VPN is active (`TRANSPORT_VPN`); that is the price of not needin
 ## Install
 
 Download `holtdroid-tunnel-<version>.apk` from
-[Releases](https://github.com/kriakiku/holtdroid-tunnel/releases). It carries the engine for
+[Releases](https://github.com/holtdroid/holtdroid-tunnel/releases). It carries the engine for
 `arm64-v8a`, `armeabi-v7a` and `x86_64`.
 
 ```sh
