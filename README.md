@@ -1,10 +1,10 @@
 <p align="center">
-  <a href="https://holtdroid.github.io/holtdroid/configuration/phones/"><img src="https://github.com/holtdroid/.github/raw/main/profile/assets/social-holtdroid-tunnel.png" alt="Holtdroid Tunnel — all of a phone's traffic over USB to the host"></a>
+  <a href="https://holtdroid.github.io/configuration/phones/"><img src="https://github.com/holtdroid/.github/raw/main/profile/assets/social-holtdroid-tunnel.png" alt="Holtdroid Tunnel — all of a phone's traffic over USB to the host"></a>
 </p>
 
 <p align="center">
   Part of <a href="https://github.com/holtdroid/holtdroid"><b>Holtdroid</b></a> ·
-  <a href="https://holtdroid.github.io/holtdroid/configuration/phones/">Documentation</a> ·
+  <a href="https://holtdroid.github.io/configuration/phones/">Documentation</a> ·
   <a href="https://github.com/holtdroid">All repositories</a>
 </p>
 
