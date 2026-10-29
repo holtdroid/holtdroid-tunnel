@@ -8,6 +8,14 @@
   <a href="https://github.com/holtdroid">All repositories</a>
 </p>
 
+<p align="center">
+  <img src="https://github.com/holtdroid/.github/raw/main/profile/assets/ai-disclaimer.png" alt="Disclaimer: fully AI-generated. Not a single line of code was written or reviewed by a human. Use at your own risk.">
+</p>
+
+> [!CAUTION]
+> **Fully AI-generated.** Not a single line of this project was written or reviewed by a human: all of it was
+> written by Claude through Claude Code. It's a Pandora's box, so use it at your own risk.
+
 Holtdroid Tunnel is the network path for real phones in
 [Holtdroid](https://github.com/holtdroid/holtdroid), the self-hosted portal for Android test
 devices. It is a VpnService that captures every app's IPv4 and IPv6 traffic and hands it to a
